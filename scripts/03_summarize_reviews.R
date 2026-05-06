@@ -11,6 +11,9 @@ dplyr::mutate(
 overall_summary <- summarize_reviews_overall(reviews_chn_clean)
 daily_summary <- summarize_reviews_daily(reviews_chn_clean)
 
+# Save the summary to CSV file
+# readr::write_csv(daily_summary, "data/clean/reviews_chn_daily_summary.csv")
+
 p_volume <- ggplot2::ggplot(daily_summary, ggplot2::aes(x = review_date, y = total_reviews)) +
   ggplot2::geom_line(linewidth = 0.6) +
   ggplot2::geom_line(ggplot2::aes(y = total_reviews), linewidth = 1) +
@@ -30,7 +33,6 @@ daily_summary_filtered <- daily_summary |>
 # Plot the time trend
 p_negative_rate <- ggplot2::ggplot(daily_summary_filtered, 
   ggplot2::aes(x = review_date, y = negative_rate)) +
-  ggplot2::geom_line(linewidth = 0.6) +
   ggplot2::geom_line(ggplot2::aes(y = negative_rate), linewidth = 1) +
   ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   ggplot2::labs(
@@ -49,10 +51,23 @@ weekly_summary <- reviews_chn_clean |>
   ) |>
   dplyr::group_by(review_week) |>
   dplyr::summarise(
-    total_reviews = n(),
+    total_reviews = dplyr::n(),
     negative_reviews = sum(is_negative, na.rm = TRUE),
     positive_reviews = sum(voted_up, na.rm = TRUE),
     negative_rate = negative_reviews / total_reviews,
     .groups = "drop"
   ) |>
   dplyr::arrange(review_week)
+
+# Weekly negative reviews plot
+p_weekly <- ggplot2::ggplot(weekly_summary, ggplot2::aes(x = review_week, y = negative_rate)) +
+  ggplot2::geom_line(linewidth = 0.8) +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  ggplot2::labs(
+    title = "Weekly Negative Review Rate",
+    x = "Week",
+    y = "Negative Rate"
+  ) +
+  ggplot2::theme_minimal()
+
+plotly::ggplotly(p_weekly)
