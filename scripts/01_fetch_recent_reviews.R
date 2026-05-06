@@ -1,6 +1,5 @@
 source("R/steam_api.R")
 source("R/fetch_reviews.R")
-source("R/io.R")
 
 appid <- 2246340
 
