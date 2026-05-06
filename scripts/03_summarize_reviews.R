@@ -59,6 +59,9 @@ weekly_summary <- reviews_chn_clean |>
   ) |>
   dplyr::arrange(review_week)
 
+# Save to csv file
+readr::write_csv(weekly_summary, "data/clean/reviews_chn_weekly_summary.csv")
+
 # Weekly negative reviews plot
 p_weekly <- ggplot2::ggplot(weekly_summary, ggplot2::aes(x = review_week, y = negative_rate)) +
   ggplot2::geom_line(linewidth = 0.8) +
