@@ -1,0 +1,21 @@
+keyword,n,review_share,scope
+crashes,304,0.2914669223394056,negative_reviews
+frequent crashes,96,0.09204218600191755,negative_reviews
+performance issues,61,0.058485139022051776,negative_reviews
+bad optimization,38,0.0364333652924257,negative_reviews
+unplayable,37,0.03547459252157239,negative_reviews
+errors,36,0.03451581975071908,negative_reviews
+refunds,35,0.03355704697986577,negative_reviews
+bugs,28,0.026845637583892617,negative_reviews
+low fps,19,0.01821668264621285,negative_reviews
+broken experience,18,0.01725790987535954,negative_reviews
+frame drops,17,0.016299137104506232,negative_reviews
+fatal errors,14,0.013422818791946308,negative_reviews
+loading issues,11,0.010546500479386385,negative_reviews
+stuttering,11,0.010546500479386385,negative_reviews
+lag,10,0.009587727708533078,negative_reviews
+server issues,9,0.00862895493767977,negative_reviews
+disconnects,7,0.006711409395973154,negative_reviews
+shader compilation,5,0.004793863854266539,negative_reviews
+difficulty issues,3,0.0028763183125599234,negative_reviews
+combat pacing issues,2,0.0019175455417066154,negative_reviews

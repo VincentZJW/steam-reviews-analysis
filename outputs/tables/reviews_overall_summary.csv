@@ -1,0 +1,4 @@
+language,total_reviews,negative_reviews,positive_reviews,negative_rate,first_review_date,latest_review_date
+All,9973,4685,5288,0.46976837461145093,2025-09-29,2026-06-29
+Chinese,4997,3642,1355,0.7288373023814289,2025-09-29,2026-06-29
+English,4976,1043,3933,0.20960610932475884,2026-01-31,2026-06-28

@@ -1,0 +1,15 @@
+keyword,n,review_share,scope
+帧数下降,458,0.1257550796265788,negative_reviews
+优化很差,447,0.12273476112026359,negative_reviews
+闪退崩溃,409,0.11230093355299287,negative_reviews
+更新之后卡顿,103,0.02828116419549698,negative_reviews
+退款,74,0.020318506315211423,negative_reviews
+怪物设计差,72,0.019769357495881382,negative_reviews
+bug,67,0.018396485447556288,negative_reviews
+联机掉线,25,0.006864360241625481,negative_reviews
+怪物设计不错,10,0.0027457440966501922,negative_reviews
+性能问题,8,0.002196595277320154,negative_reviews
+加载慢,5,0.0013728720483250961,negative_reviews
+战斗节奏慢,5,0.0013728720483250961,negative_reviews
+服务器问题,5,0.0013728720483250961,negative_reviews
+键鼠适配差,2,5.491488193300384e-4,negative_reviews

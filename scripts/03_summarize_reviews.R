@@ -1,76 +1,114 @@
-# Load data
+# 基于清洗后的 Steam 评论数据构建指标表
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+})
+
 source("R/summarize_reviews.R")
 
-reviews_chn_clean <- readr::read_csv("data/clean/reviews_chn_clean.csv") |>
-dplyr::mutate(
-    recommendationid = as.character(recommendationid),
-    author.steamid = as.character(author.steamid),
-    review_year = as.integer(review_year)
+clean_dir <- "data/clean"
+tables_dir <- "outputs/tables"
+
+dir.create(clean_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+
+read_clean_reviews <- function(path) {
+  readr::read_csv(
+    path,
+    show_col_types = FALSE,
+    col_types = readr::cols(
+      recommendationid = readr::col_character(),
+      author.steamid = readr::col_character(),
+      created_at = readr::col_datetime(),
+      updated_at = readr::col_datetime(),
+      review_date = readr::col_date(),
+      .default = readr::col_guess()
+    )
   )
+}
 
-overall_summary <- summarize_reviews_overall(reviews_chn_clean)
-daily_summary <- summarize_reviews_daily(reviews_chn_clean)
+standardize_review_language <- function(df, language_label) {
+  df |>
+    dplyr::mutate(language = language_label)
+}
 
-# Save the summary to CSV file
-# readr::write_csv(daily_summary, "data/clean/reviews_chn_daily_summary.csv")
+# 读取 scripts/02_clean_reviews.R 生成的清洗数据
+reviews_chn <- read_clean_reviews(file.path(clean_dir, "reviews_chn_clean.csv")) |>
+  standardize_review_language("Chinese")
 
-p_volume <- ggplot2::ggplot(daily_summary, ggplot2::aes(x = review_date, y = total_reviews)) +
-  ggplot2::geom_line(linewidth = 0.6) +
-  ggplot2::geom_line(ggplot2::aes(y = total_reviews), linewidth = 1) +
-  ggplot2::labs(
-    title = "Daily Review Volume",
-    x = "Date",
-    y = "Number of Reviews"
-  ) +
-  ggplot2::theme_minimal()
+reviews_eng <- read_clean_reviews(file.path(clean_dir, "reviews_eng_clean.csv")) |>
+  standardize_review_language("English")
 
-plotly::ggplotly(p_volume)
+reviews_all <- dplyr::bind_rows(reviews_chn, reviews_eng)
 
-# Filter the records that have more than 10 reviews
-daily_summary_filtered <- daily_summary |>
-  dplyr::filter(total_reviews >= 10)
+# 生成单语言和合并语言维度的每日指标
+reviews_chn_daily_summary <- summarize_reviews_daily(reviews_chn)
+reviews_eng_daily_summary <- summarize_reviews_daily(reviews_eng)
+reviews_daily_by_language <- summarize_reviews_daily(
+  reviews_all,
+  group_cols = "language"
+)
 
-# Plot the time trend
-p_negative_rate <- ggplot2::ggplot(daily_summary_filtered, 
-  ggplot2::aes(x = review_date, y = negative_rate)) +
-  ggplot2::geom_line(ggplot2::aes(y = negative_rate), linewidth = 1) +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  ggplot2::labs(
-    title = "Daily Negative Review Rate",
-    x = "Date",
-    y = "Negative Rate"
-  ) +
-  ggplot2::theme_minimal()
+# 生成单语言和合并语言维度的每周指标
+reviews_chn_weekly_summary <- summarize_reviews_weekly(reviews_chn)
+reviews_eng_weekly_summary <- summarize_reviews_weekly(reviews_eng)
+reviews_weekly_by_language <- summarize_reviews_weekly(
+  reviews_all,
+  group_cols = "language"
+)
 
-plotly::ggplotly(p_negative_rate)
+# 生成适合 README 和报告使用的整体汇总表
+overall_all <- summarize_reviews_overall(reviews_all) |>
+  dplyr::mutate(language = "All", .before = 1)
 
-# Weekly intergrated
-weekly_summary <- reviews_chn_clean |>
-  dplyr::mutate(
-    review_week = as.Date(cut(review_date, breaks = "week"))
-  ) |>
-  dplyr::group_by(review_week) |>
-  dplyr::summarise(
-    total_reviews = dplyr::n(),
-    negative_reviews = sum(is_negative, na.rm = TRUE),
-    positive_reviews = sum(voted_up, na.rm = TRUE),
-    negative_rate = negative_reviews / total_reviews,
-    .groups = "drop"
-  ) |>
-  dplyr::arrange(review_week)
+overall_by_language <- summarize_reviews_overall(
+  reviews_all,
+  group_cols = "language"
+)
 
-# Save to csv file
-readr::write_csv(weekly_summary, "data/clean/reviews_chn_weekly_summary.csv")
+reviews_overall_summary <- dplyr::bind_rows(
+  overall_all,
+  overall_by_language
+)
 
-# Weekly negative reviews plot
-p_weekly <- ggplot2::ggplot(weekly_summary, ggplot2::aes(x = review_week, y = negative_rate)) +
-  ggplot2::geom_line(linewidth = 0.8) +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  ggplot2::labs(
-    title = "Weekly Negative Review Rate",
-    x = "Week",
-    y = "Negative Rate"
-  ) +
-  ggplot2::theme_minimal()
+language_distribution <- summarize_language_distribution(reviews_all)
 
-plotly::ggplotly(p_weekly)
+# 保存核心指标表
+readr::write_csv(
+  reviews_chn_daily_summary,
+  file.path(clean_dir, "reviews_chn_daily_summary.csv")
+)
+readr::write_csv(
+  reviews_eng_daily_summary,
+  file.path(clean_dir, "reviews_eng_daily_summary.csv")
+)
+readr::write_csv(
+  reviews_daily_by_language,
+  file.path(clean_dir, "reviews_daily_by_language.csv")
+)
+readr::write_csv(
+  reviews_chn_weekly_summary,
+  file.path(clean_dir, "reviews_chn_weekly_summary.csv")
+)
+readr::write_csv(
+  reviews_eng_weekly_summary,
+  file.path(clean_dir, "reviews_eng_weekly_summary.csv")
+)
+readr::write_csv(
+  reviews_weekly_by_language,
+  file.path(clean_dir, "reviews_weekly_by_language.csv")
+)
+
+# 保存报告用表格
+readr::write_csv(
+  reviews_overall_summary,
+  file.path(tables_dir, "reviews_overall_summary.csv")
+)
+readr::write_csv(
+  language_distribution,
+  file.path(tables_dir, "language_distribution.csv")
+)
+
+message("Saved daily and weekly metrics to: ", normalizePath(clean_dir))
+message("Saved reporting tables to: ", normalizePath(tables_dir))

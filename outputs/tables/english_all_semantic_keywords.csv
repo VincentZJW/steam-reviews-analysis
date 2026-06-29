@@ -1,0 +1,21 @@
+keyword,n,review_share,scope
+crashes,457,0.09184083601286173,all_reviews
+performance issues,262,0.05265273311897106,all_reviews
+frequent crashes,117,0.023512861736334406,all_reviews
+bad optimization,92,0.018488745980707395,all_reviews
+bugs,87,0.017483922829581992,all_reviews
+frame drops,56,0.011254019292604502,all_reviews
+refunds,49,0.00984726688102894,all_reviews
+stuttering,48,0.00964630225080386,all_reviews
+unplayable,46,0.009244372990353697,all_reviews
+lag,45,0.009043408360128617,all_reviews
+errors,43,0.008641479099678457,all_reviews
+low fps,32,0.006430868167202572,all_reviews
+broken experience,27,0.005426045016077171,all_reviews
+loading issues,22,0.0044212218649517685,all_reviews
+difficulty issues,16,0.003215434083601286,all_reviews
+disconnects,16,0.003215434083601286,all_reviews
+server issues,16,0.003215434083601286,all_reviews
+fatal errors,15,0.0030144694533762056,all_reviews
+shader compilation,12,0.002411575562700965,all_reviews
+control issues,5,0.0010048231511254019,all_reviews
