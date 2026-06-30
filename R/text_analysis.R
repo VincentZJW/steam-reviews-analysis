@@ -85,6 +85,15 @@ english_issue_terms <- function() {
   )
 }
 
+english_positive_terms <- function() {
+  c(
+    "recommend", "recommended", "worth", "enjoy", "enjoyed", "enjoyable",
+    "fun", "charming", "cute", "beautiful", "great", "good", "excellent",
+    "amazing", "polished", "smooth", "cozy", "relaxing", "music", "soundtrack",
+    "story", "visuals", "art", "friends", "coop", "cooperative"
+  )
+}
+
 normalize_english_tokens <- function(tokens) {
   tokens <- tolower(tokens)
   tokens[tokens %in% c("crashes", "crashed", "crashing")] <- "crash"
@@ -146,7 +155,19 @@ english_semantic_signal_pattern <- function() {
   )
 }
 
-normalize_english_semantic_term <- function(term) {
+english_positive_signal_pattern <- function() {
+  paste(
+    c(
+      "recommend", "worth", "enjoy", "enjoyable", "fun", "charming", "cute",
+      "beautiful", "excellent", "amazing", "polished", "smooth", "cozy",
+      "relaxing", "music", "soundtrack", "story", "visuals", "art",
+      "friends", "coop", "cooperative"
+    ),
+    collapse = "|"
+  )
+}
+
+normalize_english_positive_term <- function(term) {
   term <- term |>
     stringr::str_to_lower() |>
     stringr::str_replace_all("[^a-z\\s]+", " ") |>
@@ -154,6 +175,59 @@ normalize_english_semantic_term <- function(term) {
 
   if (term == "") {
     return(NA_character_)
+  }
+
+  if (stringr::str_detect(term, "recommend|worth")) {
+    return("worth recommending")
+  }
+
+  if (stringr::str_detect(term, "friend|coop|cooperative") &&
+      stringr::str_detect(term, "fun|enjoy|great|good|recommend")) {
+    return("fun with friends")
+  }
+
+  if (stringr::str_detect(term, "music|soundtrack|sound") &&
+      stringr::str_detect(term, "good|great|beautiful|amazing|excellent|love|enjoy")) {
+    return("great soundtrack")
+  }
+
+  if (stringr::str_detect(term, "story|narrative") &&
+      stringr::str_detect(term, "good|great|beautiful|interesting|love|enjoy")) {
+    return("strong story")
+  }
+
+  if (stringr::str_detect(term, "visual|art|graphics") &&
+      stringr::str_detect(term, "beautiful|good|great|amazing|excellent|cute")) {
+    return("beautiful visuals")
+  }
+
+  if (stringr::str_detect(term, "smooth|polished")) {
+    return("smooth experience")
+  }
+
+  if (stringr::str_detect(term, "cozy|relaxing|charming|cute")) {
+    return("charming experience")
+  }
+
+  if (stringr::str_detect(term, "fun|enjoy|enjoyable")) {
+    return("fun experience")
+  }
+
+  NA_character_
+}
+
+normalize_english_semantic_term <- function(term, sentiment_scope = "negative") {
+  term <- term |>
+    stringr::str_to_lower() |>
+    stringr::str_replace_all("[^a-z\\s]+", " ") |>
+    stringr::str_squish()
+
+  if (term == "") {
+    return(NA_character_)
+  }
+
+  if (identical(sentiment_scope, "positive")) {
+    return(normalize_english_positive_term(term))
   }
 
   if (stringr::str_detect(term, "performance") &&
@@ -239,15 +313,31 @@ normalize_english_semantic_term <- function(term) {
   NA_character_
 }
 
-is_quality_english_semantic_term <- function(term, phrase_stopwords) {
+is_quality_english_semantic_term <- function(term, phrase_stopwords, sentiment_scope = "negative") {
   if (is.na(term) || term == "") {
     return(FALSE)
   }
 
   tokens <- strsplit(term, " ", fixed = TRUE)[[1]]
 
-  if (any(tokens %in% english_title_stopwords()) || all(tokens %in% phrase_stopwords)) {
+  if (any(tokens %in% english_title_stopwords())) {
     return(FALSE)
+  }
+
+  if (!identical(sentiment_scope, "positive") && all(tokens %in% phrase_stopwords)) {
+    return(FALSE)
+  }
+
+  if (identical(sentiment_scope, "positive")) {
+    negative_terms <- c(
+      "performance issues", "bad optimization", "frame drops", "low fps",
+      "shader compilation", "server issues", "frequent crashes", "fatal errors",
+      "loading issues", "poor balance", "control issues", "difficulty issues",
+      "combat pacing issues", "crashes", "bugs", "refunds", "stuttering", "lag",
+      "disconnects", "broken experience", "unplayable", "errors"
+    )
+
+    return(!term %in% negative_terms && stringr::str_detect(term, english_positive_signal_pattern()))
   }
 
   if (length(tokens) == 1) {
@@ -267,7 +357,8 @@ is_quality_english_semantic_term <- function(term, phrase_stopwords) {
 }
 
 extract_english_review_semantic_candidates <- function(tokens, max_ngram = 4,
-                                                       phrase_stopwords = english_stopwords()) {
+                                                       phrase_stopwords = english_stopwords(),
+                                                       sentiment_scope = "negative") {
   tokens <- tokens[
     stringr::str_detect(tokens, "^[a-z]+$") &
       stringr::str_length(tokens) >= 3
@@ -277,18 +368,40 @@ extract_english_review_semantic_candidates <- function(tokens, max_ngram = 4,
     return(character())
   }
 
-  candidates <- make_english_semantic_windows(tokens, max_window = max_ngram)
+  signal_pattern <- if (identical(sentiment_scope, "positive")) {
+    english_positive_signal_pattern()
+  } else {
+    english_semantic_signal_pattern()
+  }
 
-  semantic_terms <- vapply(candidates, normalize_english_semantic_term, character(1))
+  candidates <- make_english_semantic_windows(
+    tokens,
+    max_window = max_ngram,
+    signal_pattern = signal_pattern
+  )
+
+  semantic_terms <- vapply(
+    candidates,
+    normalize_english_semantic_term,
+    character(1),
+    sentiment_scope = sentiment_scope
+  )
   semantic_terms <- semantic_terms[
-    vapply(semantic_terms, is_quality_english_semantic_term, logical(1), phrase_stopwords = phrase_stopwords)
+    vapply(
+      semantic_terms,
+      is_quality_english_semantic_term,
+      logical(1),
+      phrase_stopwords = phrase_stopwords,
+      sentiment_scope = sentiment_scope
+    )
   ]
 
   unique(semantic_terms)
 }
 
-make_english_semantic_windows <- function(tokens, max_window = 4) {
-  signal_index <- which(stringr::str_detect(tokens, english_semantic_signal_pattern()))
+make_english_semantic_windows <- function(tokens, max_window = 4,
+                                          signal_pattern = english_semantic_signal_pattern()) {
+  signal_index <- which(stringr::str_detect(tokens, signal_pattern))
 
   if (length(signal_index) == 0) {
     return(character())
@@ -326,7 +439,8 @@ extract_english_semantic_keywords <- function(reviews, text_col = "review_clean"
       tokens_by_review,
       extract_english_review_semantic_candidates,
       max_ngram = max_ngram,
-      phrase_stopwords = stopwords
+      phrase_stopwords = stopwords,
+      sentiment_scope = sentiment_scope
     ),
     use.names = FALSE
   )
@@ -387,6 +501,9 @@ chinese_segmentation_dictionary <- function() {
     "着色器编译", "着色器", "编译", "加载慢", "加载", "加载时间",
     "操作", "手感", "视角", "锁定", "镜头", "战斗节奏慢", "战斗", "战斗节奏", "节奏慢", "节奏",
     "怪物设计不错", "怪物设计差", "怪物设计", "设计不错", "设计差", "设计", "数值", "难度", "任务", "地图", "画面",
+    "推荐", "值得推荐", "值得", "有趣", "画风", "美术", "音乐", "配乐", "音效",
+    "剧情不错", "故事不错", "操作简单", "上手简单", "体验不错", "合作好玩",
+    "适合朋友", "朋友", "联机好玩", "可爱", "轻松", "欢乐", "喜欢",
     "垃圾", "问题", "难受", "不错", "太差", "很差", "不好", "很烂",
     "差", "慢", "烂", "高", "低"
   ))
@@ -419,7 +536,9 @@ chinese_meaningful_pattern <- function() {
         "适配", "操作", "手感", "视角", "锁定", "任务", "更新", "bug",
         "问题", "差", "慢", "烂", "垃圾", "加载", "编译", "着色器", "设计",
         "战斗", "节奏", "不错", "难受", "卡死", "黑屏", "报错", "帧",
-        "fps", "crash"
+        "fps", "crash", "好玩", "推荐", "有趣", "画风", "美术", "音乐",
+        "配乐", "音效", "体验", "朋友", "合作", "联机好玩", "可爱",
+        "轻松", "欢乐", "喜欢", "值得", "上手", "简单"
       ),
       collapse = "|"
     ),
@@ -537,7 +656,11 @@ chinese_semantic_quality_pattern <- function() {
         "联机掉线", "键鼠适配差", "怪物设计不错", "怪物设计差",
         "战斗节奏慢", "闪退崩溃", "退款", "服务器问题", "加载慢",
         "性能问题", "操作.*(差|难受|问题)", "手感.*(差|问题)",
-        "视角.*(差|问题)", "设计.*(不错|差|问题)", "bug"
+        "视角.*(差|问题)", "设计.*(不错|差|问题)", "bug",
+        "值得推荐", "体验不错", "剧情不错", "故事不错", "操作简单",
+        "上手简单", "合作好玩", "适合朋友", "联机好玩", "音乐不错",
+        "配乐不错", "画风不错", "美术风格不错", "角色可爱", "轻松欢乐",
+        "战斗体验不错", "玩法有趣"
       ),
       collapse = "|"
     ),
@@ -545,21 +668,88 @@ chinese_semantic_quality_pattern <- function() {
   )
 }
 
-extract_chinese_regex_semantic_candidates <- function(text) {
+chinese_negative_semantic_terms <- function() {
+  c(
+    "更新后卡顿", "更新之后卡顿", "优化很差", "掉帧", "掉帧卡顿", "卡顿",
+    "联机掉线", "服务器问题", "键位问题", "战斗节奏慢", "怪物设计差",
+    "闪退崩溃", "退款", "加载慢", "性能问题", "bug"
+  )
+}
+
+extract_chinese_positive_regex_semantic_candidates <- function(text) {
   text <- clean_chinese_text(text)
   candidates <- character()
 
+  if (stringr::str_detect(text, "推荐|值得.{0,3}(买|入|玩)|值得推荐")) {
+    candidates <- c(candidates, "值得推荐")
+  }
+
+  if (stringr::str_detect(text, "(合作|联机|多人|朋友).{0,8}(好玩|有趣|欢乐|快乐|推荐)")) {
+    candidates <- c(candidates, "合作好玩", "适合朋友")
+  }
+
+  if (stringr::str_detect(text, "(剧情|故事).{0,6}(不错|好|优秀|喜欢|有趣)")) {
+    candidates <- c(candidates, "剧情不错")
+  }
+
+  if (stringr::str_detect(text, "(音乐|配乐|音效).{0,6}(不错|好|棒|优秀|喜欢)")) {
+    candidates <- c(candidates, "音乐不错")
+  }
+
+  if (stringr::str_detect(text, "(画风|美术|画面).{0,6}(不错|好|漂亮|精美|可爱|喜欢)")) {
+    candidates <- c(candidates, "美术风格不错")
+  }
+
+  if (stringr::str_detect(text, "(操作|上手).{0,6}(简单|顺手|舒服|流畅|容易)")) {
+    candidates <- c(candidates, "操作简单")
+  }
+
+  if (stringr::str_detect(text, "(体验|游玩).{0,6}(不错|很好|舒服|优秀|满意)")) {
+    candidates <- c(candidates, "体验不错")
+  }
+
+  if (stringr::str_detect(text, "(战斗|玩法|系统).{0,8}(有趣|不错|好玩|喜欢)")) {
+    candidates <- c(candidates, "玩法有趣")
+  }
+
+  if (stringr::str_detect(text, "可爱|萌")) {
+    candidates <- c(candidates, "角色可爱")
+  }
+
+  if (stringr::str_detect(text, "轻松|欢乐|快乐")) {
+    candidates <- c(candidates, "轻松欢乐")
+  }
+
+  if (stringr::str_detect(text, "好玩|有趣|喜欢")) {
+    candidates <- c(candidates, "体验不错")
+  }
+
+  unique(candidates)
+}
+
+extract_chinese_regex_semantic_candidates <- function(text, sentiment_scope = "negative") {
+  text <- clean_chinese_text(text)
+  candidates <- character()
+
+  if (identical(sentiment_scope, "positive")) {
+    return(extract_chinese_positive_regex_semantic_candidates(text))
+  }
+
   if (stringr::str_detect(text, "更新.{0,6}(之后|以后|后|完).{0,8}(卡顿|掉帧|帧数低|帧率低|fps低)")) {
-    candidates <- c(candidates, "更新之后卡顿")
+    candidates <- c(candidates, "更新后卡顿")
   }
 
   if (stringr::str_detect(text, "优化.{0,5}(很差|太差|不好|很烂|差|烂|垃圾|问题)")) {
     candidates <- c(candidates, "优化很差")
   }
 
-  if (stringr::str_detect(text, "(帧数|帧率|fps).{0,5}(下降|低|不稳)") ||
-      stringr::str_detect(text, "掉帧|卡顿|低帧率")) {
-    candidates <- c(candidates, "帧数下降")
+  if (stringr::str_detect(text, "掉帧|低帧率") ||
+      stringr::str_detect(text, "(帧数|帧率|fps).{0,5}(下降|低|不稳)")) {
+    candidates <- c(candidates, "掉帧")
+  }
+
+  if (stringr::str_detect(text, "卡顿|很卡|非常卡|卡界面|卡死")) {
+    candidates <- c(candidates, "卡顿")
   }
 
   if (stringr::str_detect(text, "(联机|服务器|联网).{0,6}(掉线|断线|断开)")) {
@@ -570,9 +760,9 @@ extract_chinese_regex_semantic_candidates <- function(text) {
     candidates <- c(candidates, "服务器问题")
   }
 
-  if (stringr::str_detect(text, "(键鼠|键盘|鼠标).{0,8}(适配|操作).{0,8}(差|不好|难受|问题)") ||
+  if (stringr::str_detect(text, "(键位|按键|键盘|鼠标|键鼠).{0,8}(修改|自定义|适配|操作|冲突).{0,8}(差|不好|难受|问题|不能|不让)") ||
       stringr::str_detect(text, "键鼠适配差")) {
-    candidates <- c(candidates, "键鼠适配差")
+    candidates <- c(candidates, "键位问题")
   }
 
   if (stringr::str_detect(text, "战斗.{0,4}节奏.{0,4}(慢|拖)")) {
@@ -606,16 +796,76 @@ extract_chinese_regex_semantic_candidates <- function(text) {
   unique(candidates)
 }
 
-normalize_chinese_semantic_term <- function(term) {
+normalize_chinese_semantic_term <- function(term, sentiment_scope = "negative") {
   term <- stringr::str_to_lower(stringr::str_squish(term))
 
   if (term == "") {
     return(NA_character_)
   }
 
-  if (stringr::str_detect(term, "更新|之后|以后|后|完") &&
+  if (identical(sentiment_scope, "positive")) {
+    if (stringr::str_detect(term, "推荐|值得")) {
+      return("值得推荐")
+    }
+
+    if (stringr::str_detect(term, "朋友|合作|联机|多人") &&
+        stringr::str_detect(term, "好玩|有趣|欢乐|快乐|推荐")) {
+      return("合作好玩")
+    }
+
+    if (stringr::str_detect(term, "剧情|故事") &&
+        stringr::str_detect(term, "不错|好|优秀|喜欢|有趣")) {
+      return("剧情不错")
+    }
+
+    if (stringr::str_detect(term, "音乐|配乐|音效") &&
+        stringr::str_detect(term, "不错|好|棒|优秀|喜欢")) {
+      return("音乐不错")
+    }
+
+    if (stringr::str_detect(term, "画风|美术|画面") &&
+        stringr::str_detect(term, "不错|好|漂亮|精美|可爱|喜欢")) {
+      return("美术风格不错")
+    }
+
+    if (stringr::str_detect(term, "操作|上手") &&
+        stringr::str_detect(term, "简单|顺手|舒服|流畅|容易")) {
+      return("操作简单")
+    }
+
+    if (stringr::str_detect(term, "体验|游玩") &&
+        stringr::str_detect(term, "不错|很好|舒服|优秀|满意|好玩|有趣")) {
+      return("体验不错")
+    }
+
+    if (stringr::str_detect(term, "战斗|玩法|系统") &&
+        stringr::str_detect(term, "有趣|不错|好玩|喜欢")) {
+      return("玩法有趣")
+    }
+
+    if (stringr::str_detect(term, "可爱|萌")) {
+      return("角色可爱")
+    }
+
+    if (stringr::str_detect(term, "轻松|欢乐|快乐")) {
+      return("轻松欢乐")
+    }
+
+    if (term %in% c(
+      "值得推荐", "体验不错", "剧情不错", "故事不错", "操作简单",
+      "上手简单", "合作好玩", "适合朋友", "联机好玩", "音乐不错",
+      "配乐不错", "画风不错", "美术风格不错", "角色可爱",
+      "轻松欢乐", "战斗体验不错", "玩法有趣"
+    )) {
+      return(term)
+    }
+
+    return(NA_character_)
+  }
+
+  if (stringr::str_detect(term, "更新|补丁|版本") &&
       stringr::str_detect(term, "卡顿|掉帧|帧数低|帧率低|fps低")) {
-    return("更新之后卡顿")
+    return("更新后卡顿")
   }
 
   if (stringr::str_detect(term, "优化") &&
@@ -623,9 +873,14 @@ normalize_chinese_semantic_term <- function(term) {
     return("优化很差")
   }
 
-  if (stringr::str_detect(term, "帧数|帧率|fps|掉帧|卡顿") &&
-      stringr::str_detect(term, "下降|低|不稳|掉帧|卡顿")) {
-    return("帧数下降")
+  if (stringr::str_detect(term, "掉帧|低帧率") ||
+      (stringr::str_detect(term, "帧数|帧率|fps") &&
+       stringr::str_detect(term, "下降|低|不稳"))) {
+    return("掉帧")
+  }
+
+  if (stringr::str_detect(term, "卡顿|很卡|非常卡|卡界面|卡死")) {
+    return("卡顿")
   }
 
   if (stringr::str_detect(term, "联机|服务器|联网") &&
@@ -638,9 +893,9 @@ normalize_chinese_semantic_term <- function(term) {
     return("服务器问题")
   }
 
-  if (stringr::str_detect(term, "键鼠|键盘|鼠标") &&
-      stringr::str_detect(term, "适配|操作|差|不好|难受|问题")) {
-    return("键鼠适配差")
+  if (stringr::str_detect(term, "键位|按键|键鼠|键盘|鼠标") &&
+      stringr::str_detect(term, "修改|自定义|适配|操作|冲突|差|不好|难受|问题|不能|不让")) {
+    return("键位问题")
   }
 
   if (stringr::str_detect(term, "战斗") &&
@@ -680,14 +935,14 @@ normalize_chinese_semantic_term <- function(term) {
     return("bug")
   }
 
-  if (term %in% c("掉帧卡顿", "优化很差", "帧数下降", "闪退崩溃", "联机掉线", "退款")) {
+  if (term %in% c("掉帧卡顿", "掉帧", "卡顿", "优化很差", "闪退崩溃", "联机掉线", "退款", "键位问题")) {
     return(term)
   }
 
   NA_character_
 }
 
-is_quality_chinese_semantic_term <- function(term) {
+is_quality_chinese_semantic_term <- function(term, sentiment_scope = "negative") {
   if (is.na(term) || term == "") {
     return(FALSE)
   }
@@ -705,22 +960,38 @@ is_quality_chinese_semantic_term <- function(term) {
     return(FALSE)
   }
 
+  if (identical(sentiment_scope, "positive") &&
+      term %in% chinese_negative_semantic_terms()) {
+    return(FALSE)
+  }
+
   stringr::str_detect(term, chinese_semantic_quality_pattern())
 }
 
-extract_chinese_review_semantic_candidates <- function(text, tokens, max_ngram = 5) {
+extract_chinese_review_semantic_candidates <- function(text, tokens, max_ngram = 5,
+                                                       sentiment_scope = "negative") {
   tokens <- normalize_chinese_tokens(tokens)
   tokens <- tokens[vapply(tokens, is_valid_chinese_phrase_token, logical(1))]
 
   ngram_candidates <- make_chinese_semantic_windows(tokens, max_window = max_ngram)
 
   semantic_terms <- c(
-    extract_chinese_regex_semantic_candidates(text),
-    vapply(ngram_candidates, normalize_chinese_semantic_term, character(1))
+    extract_chinese_regex_semantic_candidates(text, sentiment_scope = sentiment_scope),
+    vapply(
+      ngram_candidates,
+      normalize_chinese_semantic_term,
+      character(1),
+      sentiment_scope = sentiment_scope
+    )
   )
 
   semantic_terms <- semantic_terms[
-    vapply(semantic_terms, is_quality_chinese_semantic_term, logical(1))
+    vapply(
+      semantic_terms,
+      is_quality_chinese_semantic_term,
+      logical(1),
+      sentiment_scope = sentiment_scope
+    )
   ]
 
   unique(semantic_terms)
@@ -768,7 +1039,7 @@ extract_chinese_semantic_keywords <- function(reviews, text_col = "review_clean"
       extract_chinese_review_semantic_candidates,
       text = text,
       tokens = tokens_by_review,
-      MoreArgs = list(max_ngram = max_ngram)
+      MoreArgs = list(max_ngram = max_ngram, sentiment_scope = sentiment_scope)
     ),
     use.names = FALSE
   )
@@ -801,8 +1072,14 @@ plot_keyword_bars <- function(data, term_col, count_col = "n", title,
     ) +
     ggplot2::theme_minimal(base_size = 12, base_family = base_family) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold"),
-      panel.grid.major.y = ggplot2::element_blank()
+      plot.background = ggplot2::element_rect(fill = "#111927", color = NA),
+      panel.background = ggplot2::element_rect(fill = "#111927", color = NA),
+      plot.title = ggplot2::element_text(color = "#E8EEF8", face = "bold"),
+      axis.title = ggplot2::element_text(color = "#A4B1CD"),
+      axis.text = ggplot2::element_text(color = "#D8E2F2"),
+      panel.grid.major.x = ggplot2::element_line(color = "rgba(164,177,205,0.16)"),
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank()
     )
 }
 
@@ -920,6 +1197,7 @@ plot_keyword_cloud <- function(data, term_col = "term", count_col = "n", title,
         ggplot2::theme_void(base_family = base_family) +
         ggplot2::theme(
           plot.title = ggplot2::element_text(
+            color = "#E8EEF8",
             face = "bold",
             size = 18,
             hjust = 0.5,
@@ -951,6 +1229,7 @@ plot_keyword_cloud <- function(data, term_col = "term", count_col = "n", title,
     ggplot2::theme_void(base_family = base_family) +
     ggplot2::theme(
       plot.title = ggplot2::element_text(
+        color = "#E8EEF8",
         face = "bold",
         size = 18,
         hjust = 0.5,

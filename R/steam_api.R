@@ -6,7 +6,9 @@ reviews_page <- function(appid,
                          num_per_page = 100,
                          purchase_type = "all",
                          day_range = NULL,
-                         filter_offtopic_activity = 1) {
+                         filter_offtopic_activity = 1,
+                         timeout_sec = 12,
+                         retry_max_tries = 2) {
   url <- sprintf("https://store.steampowered.com/appreviews/%s", appid)
 
   req <- httr2::request(url) |>
@@ -22,9 +24,9 @@ reviews_page <- function(appid,
       filter_offtopic_activity = filter_offtopic_activity
     ) |>
     httr2::req_user_agent("steam-reviews-monitor/1.0 (personal project)") |>
-    httr2::req_timeout(20) |>
+    httr2::req_timeout(timeout_sec) |>
     httr2::req_retry(
-      max_tries = 3,
+      max_tries = retry_max_tries,
       retry_on_failure = TRUE
     )
 

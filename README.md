@@ -7,9 +7,11 @@ negative-review signals, and semantic player feedback topics.
 
 ```text
 steam-reviews-analysis/
+├─ app.R          # Interactive Shiny dashboard
 ├─ data/
 │  ├─ raw/        # Raw Steam review exports
-│  └─ clean/      # Cleaned review data and summary tables
+│  ├─ clean/      # Cleaned review data and summary tables
+│  └─ cache/      # Local dashboard cache snapshots
 ├─ R/             # Reusable R functions
 ├─ scripts/       # Ordered analysis scripts
 ├─ outputs/
@@ -31,6 +33,28 @@ Rscript scripts/03_summarize_reviews.R
 Rscript scripts/04_detect_alerts.R
 Rscript scripts/05_visualize_trends.R
 Rscript scripts/06_keyword_analysis.R
+```
+
+## Interactive Dashboard
+
+Launch the local Shiny dashboard from the project root:
+
+```bash
+Rscript -e 'shiny::runApp(".", port = 3857, launch.browser = TRUE)'
+```
+
+The dashboard supports Steam game search, appid selection, cached live review
+fetching, KPI cards, review detail tables, daily/weekly/monthly trends,
+semantic keywords, word clouds, and negative-rate alert monitoring.
+
+Core dashboard packages:
+
+```r
+install.packages(c(
+  "shiny", "bslib", "plotly", "DT", "ggplot2", "dplyr", "readr",
+  "stringr", "lubridate", "scales", "tidyr", "slider", "httr2",
+  "jsonlite", "tibble", "htmltools", "ggwordcloud", "stringi"
+))
 ```
 
 ## Current Outputs

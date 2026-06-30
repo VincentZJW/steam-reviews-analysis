@@ -1,6 +1,7 @@
 fetch_recent_reviews <- function(appid,
                           max_pages = 5,
                           sleep_sec = 1,
+                          fail_on_error = FALSE,
                           ...) {
   cursor <- "*"
   out <- list()
@@ -8,7 +9,29 @@ fetch_recent_reviews <- function(appid,
   for (i in seq_len(max_pages)) {
     message("Fetching page ", i, " ...")
 
-    page <- reviews_page(appid, cursor = cursor, ...)
+    page <- tryCatch(
+      reviews_page(appid, cursor = cursor, ...),
+      error = function(e) {
+        if (fail_on_error) {
+          stop(e)
+        }
+
+        warning(
+          "Steam reviews request failed on page ",
+          i,
+          " for appid ",
+          appid,
+          ": ",
+          conditionMessage(e),
+          call. = FALSE
+        )
+        NULL
+      }
+    )
+
+    if (is.null(page)) {
+      break
+    }
 
     if (is.null(page$reviews) || nrow(page$reviews) == 0) {
       break

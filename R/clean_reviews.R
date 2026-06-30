@@ -1,4 +1,14 @@
 clean_reviews <- function(df) {
+  optional_cols <- intersect(
+    c(
+      "app_id",
+      "author.playtime_forever",
+      "author.playtime_at_review",
+      "author.last_played"
+    ),
+    names(df)
+  )
+
   df |>
     dplyr::mutate(
       recommendationid = as.character(recommendationid),
@@ -9,8 +19,8 @@ clean_reviews <- function(df) {
       review = stringr::str_replace_all(review, "[\\r\\n]+", " "),
       review = stringr::str_squish(review),
 
-      created_at = lubridate::ymd_hms(created_at, tz = "UTC"),
-      updated_at = lubridate::ymd_hms(updated_at, tz = "UTC"),
+      created_at = lubridate::as_datetime(created_at, tz = "UTC"),
+      updated_at = lubridate::as_datetime(updated_at, tz = "UTC"),
 
       review_date = as.Date(created_at),
       review_year = as.integer(lubridate::year(created_at)),
@@ -22,7 +32,6 @@ clean_reviews <- function(df) {
         stringr::str_to_lower() |>
         stringr::str_replace_all("https?://\\S+|www\\.\\S+", " ") |>
         stringr::str_replace_all("[[:punct:]]+", " ") |>
-        stringr::str_replace_all("[[:digit:]]+", " ") |>
         stringr::str_squish()
     ) |>
     dplyr::filter(!is.na(review), review != "") |>
@@ -40,6 +49,7 @@ clean_reviews <- function(df) {
       review_month,
       author.steamid,
       author.num_games_owned,
-      author.num_reviews
+      author.num_reviews,
+      dplyr::any_of(optional_cols)
     )
 }
